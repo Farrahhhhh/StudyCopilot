@@ -28,7 +28,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m studycopilot
 ~~~
 
-私有仓库需要先用有访问权限的 GitHub 账号登录。也可以从 GitHub 下载 ZIP 并解压，在解压目录中从创建虚拟环境这一步开始。仓库不包含预建 .exe 或虚拟环境。
+仓库已公开，无需登录即可查看或下载源码。也可以从 GitHub 下载 ZIP 并解压，在解压目录中从创建虚拟环境这一步开始。仓库不包含预建 .exe 或虚拟环境。
 
 ## 已安装后启动
 
