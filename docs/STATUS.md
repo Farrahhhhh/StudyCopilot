@@ -2,6 +2,8 @@
 
 整理日期：2026-09-14。应用版本 **0.3.1**，SQLite **schema v3**，Windows 桌面应用。
 
+核心特点：通过官方 Codex App Server 使用已有 ChatGPT 订阅中的 Codex 额度，无需另配 API Key 或单独开通 API 计费。需具备可用的 Codex 权限和剩余额度；模型请求仍联网。
+
 ## 已实现
 
 | 领域 | 当前能力 |

@@ -1,10 +1,23 @@
 # StudyCopilot V0.3.1
 
+**用已有 ChatGPT 订阅额度，把教材截图直接变成中文译文。无需 API Key，无需单独开通 API 计费。**
+
 Windows 学习阅读侧栏：**按截图快捷键 → 框选并松开 → 在侧栏直接读译文**。无需复制图片、复制说明或切到聊天窗口；支持正文、公式、表格和电路截图，不需要 OCR。
 
 项目、资料与学习记忆保存在本地。开启「截图后自动翻译」时，主动框选的图片和当前项目必要上下文会发送给已连接的 ChatGPT 订阅服务，消耗对应的 Codex 额度。不会自动购买额度或切换到付费 API。
 
 原始需求已保存：[总任务](PROJECT_TASK.md)、[V0.2](PROJECT_TASK_V0.2.md)、[V0.3 框选即翻译](PROJECT_TASK_V0.3.md)。
+
+## 核心特点：已有 GPT 订阅就能用，无需另接付费 API
+
+StudyCopilot 通过官方 **Codex App Server**，使用 ChatGPT 账号登录，复用订阅中可用的 **Codex 额度**完成截图翻译和追问。无需申请 API Key、配置第三方中转服务或单独充值 API 余额。
+
+- **已有订阅直接接入**：安装官方 Codex 并完成 ChatGPT 登录，侧栏即可检查账号连接；本机已用 ChatGPT Plus 验证。
+- **截图后直接阅读**：框选 → 自动翻译 → 侧栏逐步显示 → 同图追问，免去来回复制粘贴。
+- **使用当前账户额度**：会消耗 Codex 配额，受账户权限、可用模型和剩余额度限制；额度不足时提示等待恢复，不自动购买或切换到付费 API。
+- **学习记录留在本地**：项目、资料和 Memory 保存在本地；开启自动翻译后，主动选中的图片与必要上下文仍会发送到云端服务。
+
+需要账号具备可用的 Codex 权限并安装兼容的官方客户端。订阅登录与 API Key 按量计费是官方支持的不同接入方式，参见 [官方认证说明](https://learn.chatgpt.com/docs/auth) 与 [App Server 认证模式](https://learn.chatgpt.com/docs/app-server#authentication-modes)。
 
 ## 版本概览
 
