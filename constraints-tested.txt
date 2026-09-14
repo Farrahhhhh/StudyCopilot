@@ -1,0 +1,10 @@
+# Tested on Windows x64 / Python 3.12.14.
+# Optional: python -m pip install -r requirements.txt -c constraints-tested.txt
+PySide6-Essentials==6.11.2
+shiboken6==6.11.2
+pytest==9.1.1
+colorama==0.4.6
+iniconfig==2.3.0
+packaging==26.3
+pluggy==1.6.0
+Pygments==2.21.0
