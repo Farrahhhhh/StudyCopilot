@@ -1,4 +1,4 @@
-# StudyCopilot 架构（当前 0.3.1）
+# StudyCopilot 架构（当前 0.3.2）
 
 当前主流程：主动框选 → ScreenshotStore → ContextManager → ReadingWorkflow → 精简阅读请求 → CodexProvider → 侧栏流式回答 → ReadingStore。每次模型阅读使用独立临时会话，连接可以复用；完整交接说明仅用于备用手动路径。
 
@@ -77,7 +77,7 @@ Concept 描述是全局术语，不是用户学习状态。Concept Aliases 完�
 
 SQL store 使用轻量 dict 记录；核心上下文有明确 dataclass。V0.1 的数据量较小，Concept 别名在本地逐条扫描，FTS 候选再按项目优先排序。达到明显性能瓶颈后再改索引或查询，不提前引入向量服务。
 
-日志不输出用户正文，也不输出异常消息中的参数；只记录异常类型。Memory 内容目前没有 UI 编辑/删除。V0.1/V0.2 翻译历史预留表保留，V0.3 实际回答使用独立 reading_results。
+日志不输出用户正文，也不输出异常消息中的参数；只记录异常类型。历史版本未提供 Memory 编辑/删除；0.3.2 已补齐，见文末。V0.1/V0.2 翻译历史预留表保留，V0.3 实际回答使用独立 reading_results。
 
 
 ## V0.3 自动阅读增量
@@ -91,3 +91,10 @@ ReadingWorkflow 捕获发送时 ContextPackage 快照，用请求 ID 与项目�
 SQLite v3 仅新增 reading_results 及索引，最多保留 60 条完成结果；按 project/source/session 精确恢复，截图清理通过外键级联。该表不是长期 Memory；长期保存仍走已有用户明确编辑确认流程。原 translation_history 是旧预留表，V0.3 不迁移或清空它。
 
 V0.3.1 使用 integrations/reading.py 与独立 Markdown 任务资源生成最小阅读请求；内部归属、窗口标题、路径和空元数据不发送。request_progress 按请求 ID 更新等待阶段，500ms 刷新计时，首段出现／结束／取消／清除时停止等待计时。性能证据见 V0.3.1_LATENCY.md。
+
+
+## V0.3.2 项目记忆增量
+
+ContextManager 的实际侧栏请求启用严格项目模式，复用 FTSMemoryRetriever、ConceptStore 与 MemoryStore，并由 context/reading_memory.py 筛选待解决记忆和建立发送快照。数量和序列化总长双重限制。ReadingWorkflow 接收 Provider 的实际提交确认，才显示已用记忆；完成时由 ReadingStore 连同快照一起保存。
+
+MemoryWorkflow 负责用户编辑和查看，存储查询留在各 Store；MemoryDialog 复用并扩展原编辑框。schema v4 在原 memories 表增加状态和来源，不新增平行记忆系统。来源阅读结果清理采用 ON DELETE SET NULL，已用快照不引用活记忆行，因此删除／编辑记忆不改写历史使用记录。完整规则见 V0.3.2_MEMORY.md。

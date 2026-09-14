@@ -22,7 +22,8 @@ def index_text(text: str) -> str:
 class MemoryRetriever(Protocol):
     def search(self, query: str, project_id: str | None = None,
                concept_ids: list[str] | None = None, limit: int = 5,
-               source_id: str | None = None) -> list[dict]: ...
+               source_id: str | None = None, *, project_only: bool = False,
+               pending_only: bool = False) -> list[dict]: ...
 
 
 class FTSMemoryRetriever:
@@ -33,7 +34,8 @@ class FTSMemoryRetriever:
 
     def search(self, query: str, project_id: str | None = None,
                concept_ids: list[str] | None = None, limit: int = 5,
-               source_id: str | None = None) -> list[dict]:
+               source_id: str | None = None, *, project_only: bool = False,
+               pending_only: bool = False) -> list[dict]:
         if limit <= 0:
             return []
         tokens = search_tokens(query)[:48]
@@ -49,7 +51,10 @@ class FTSMemoryRetriever:
         candidates = self.db.all("""SELECT * FROM memories WHERE
             (scope='project' AND project_id=?) OR scope='global'""", (project_id,))
         concepts = set(concept_ids or [])
-        candidates = [m for m in candidates if m["id"] in scores or m["concept_id"] in concepts]
+        candidates = [m for m in candidates
+                      if (not project_only or (m["scope"] == "project" and m["project_id"] == project_id))
+                      and (not pending_only or m["status"] == "pending")
+                      and (m["id"] in scores or m["concept_id"] in concepts)]
         candidates.sort(key=lambda m: (
             0 if m["scope"] == "project" else 1,
             0 if source_id and m["source_id"] == source_id else 1,

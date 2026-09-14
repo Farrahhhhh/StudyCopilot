@@ -235,6 +235,7 @@ class CodexProvider(ReadingProvider):
     def _turn_started(self, result):
         if self.current:
             self.turn_id = result["turn"]["id"]
+            self.request_submitted.emit(self.current.id)
 
     def _read(self, proc):
         if proc is not self.process:

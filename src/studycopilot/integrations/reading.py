@@ -23,7 +23,11 @@ def format_reading(package):
         data["术语"]=[{k:c[k] for k in ("canonical_name","chinese_name") if c.get(k)}
                       for c in package.related_concepts]
     if package.relevant_memories:
-        data["相关记忆"]=[m["content"] for m in package.relevant_memories if m.get("content")]
+        data["相关记忆"]=[{
+            "content": m["content"], "concept": m.get("concept", ""),
+            "status": m.get("status", "pending"),
+            "source": {k: m.get("source", {}).get(k, "") for k in ("title", "location")}
+        } for m in package.relevant_memories]
     if package.user_preferences:
         data["学习偏好"]=package.user_preferences
     return instruction + ("\n资料数据："+json.dumps(data,ensure_ascii=False,separators=(",",":")) if data else "")

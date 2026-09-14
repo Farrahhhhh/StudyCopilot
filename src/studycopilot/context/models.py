@@ -21,3 +21,7 @@ class StudyContext:
     current_screenshot: ScreenshotContext | None = None
     recent_screenshots: list[ScreenshotContext] = field(default_factory=list)
     question: str = ""
+    use_project_memory: bool = True
+    strict_project_memory: bool = False  # Legacy manual package API remains compatible.
+    memory_concept: str = ""
+    manual_memory_ids: tuple[str, ...] = ()

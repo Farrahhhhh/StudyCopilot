@@ -31,6 +31,7 @@ class Database:
                 backup_path = backup_dir / f"study-v{version}-{new_id()}.db"
                 backup = sqlite3.connect(str(backup_path))
                 try:
+                    backup.execute("PRAGMA foreign_keys=ON")
                     self.connection.backup(backup)
                 finally:
                     backup.close()

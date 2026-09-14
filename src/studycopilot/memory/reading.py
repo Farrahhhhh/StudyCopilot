@@ -7,7 +7,7 @@ class ReadingStore:
     def __init__(self, db):
         self.db = db
 
-    def save(self, request_id, package, answer, model):
+    def save(self, request_id, package, answer, model, snapshot=None):
         shot = package.current_screenshot
         project_id = package.project["id"] if package.project else None
         source_id = package.source["id"] if package.source else None
@@ -22,11 +22,18 @@ class ReadingStore:
             raise ValueError("回答为空或过长。")
         with self.db.connection:
             self.db.connection.execute(
-                "INSERT INTO reading_results VALUES (?,?,?,?,?,?,?,?,?,?)",
+                """INSERT INTO reading_results
+                (id,screenshot_id,project_id,source_id,session_id,task_type,question,answer,model,created_at,context_snapshot)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
                 (request_id, shot["id"] if shot else None, project_id, source_id, session_id,
-                 package.task_type, package.question, answer, model, now()))
+                 package.task_type, package.question, answer, model, now(),
+                 snapshot.to_json() if snapshot else ""))
             self.db.connection.execute("""DELETE FROM reading_results WHERE id NOT IN
                 (SELECT id FROM reading_results ORDER BY rowid DESC LIMIT 60)""")
+
+    def get(self, identifier, project_id):
+        return self.db.one("SELECT * FROM reading_results WHERE id=? AND project_id IS ?",
+                           (identifier, project_id))
 
     def latest(self, screenshot_id, project_id, source_id, session_id):
         if not screenshot_id:

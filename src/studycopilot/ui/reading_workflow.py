@@ -12,6 +12,7 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QApplication
 
 from studycopilot.integrations.reading import format_reading
+from studycopilot.context.reading_memory import ReadingContextSnapshot
 from studycopilot.memory.database import now
 from studycopilot.memory.reading import ReadingStore
 from studycopilot.providers.codex import CodexProvider
@@ -31,8 +32,12 @@ class ReadingWorkflow(QObject):
         self.current_id = None
         self.input_key = None
         self.package = None
+        self.snapshot = None
+        self.sent = False
+        self.completed_id = None
         self.answer = ""
         self.history = []
+        self.history_memories = []
         self.last_auto_key = None
         self.last_question = ""
         self.last_task = "translate"
@@ -62,6 +67,7 @@ class ReadingWorkflow(QObject):
         self.view.retry_translation.clicked.connect(lambda: self.submit(self.last_task))
         self.view.stop_translation.clicked.connect(self.stop)
         self.view.copy_translation.clicked.connect(self.copy)
+        self.provider.request_submitted.connect(self.submitted)
         self.provider.request_progress.connect(self.progress)
         self.provider.connection_changed.connect(self.connection)
         self.provider.models_changed.connect(self.models)
@@ -123,6 +129,11 @@ class ReadingWorkflow(QObject):
             self.wait_phase = "connecting" if state == "connecting" else "preparing"
             self.wait_status()
 
+    def submitted(self, request_id):
+        if request_id == self.current_id and self.key() == self.input_key:
+            self.sent = True
+            self.show_memory_usage()
+
     def progress(self, request_id, phase):
         if request_id == self.current_id:
             self.wait_phase = phase
@@ -180,13 +191,25 @@ class ReadingWorkflow(QObject):
         if not c.package:
             return
         self.input_key = self.key()
+        selected = c.package.relevant_memories
+        history = []
+        for (q, a), memories in zip(self.history[-2:], self.history_memories[-2:]):
+            # Do not reintroduce removed/disabled memory through a prior generated answer.
+            if all(m in selected for m in memories):
+                history.append(f"问题：{q}\n回答：{a[:4000]}")
+            else:
+                history.append(f"问题：{q}")
         self.package = replace(c.package, recent_context=[
-            *c.package.recent_context[-1:],
-            *[f"问题：{q}\n回答：{a[:4000]}" for q, a in self.history[-2:]]
+            *c.package.recent_context[-1:], *history
         ][-3:])
         if task_type:
             self.package = replace(self.package, task_type=task_type)
         self.current_id = str(uuid4())
+        self.snapshot = ReadingContextSnapshot.from_package(self.current_id, self.package)
+        self.sent = False
+        self.view.used_memory.setText("本次请求尚未确认发送")
+        self.view.used_memory.setEnabled(False)
+        self.completed_id = None
         self.last_question = self.package.question
         self.last_task = self.package.task_type
         self.answer = ""
@@ -223,6 +246,7 @@ class ReadingWorkflow(QObject):
     def text(self, request_id, value):
         if request_id != self.current_id or self.key() != self.input_key:
             return
+        self.submitted(request_id)
         self.answer = value
         self._ui_text = value
         self.generation_state = "generating"
@@ -238,6 +262,7 @@ class ReadingWorkflow(QObject):
             return
         self.wait_timer.stop()
         self.render_timer.stop()
+        self.submitted(request_id)
         self.answer = value
         self._ui_text = value
         self._render()
@@ -248,11 +273,14 @@ class ReadingWorkflow(QObject):
         self.view.stop_translation.setEnabled(False)
         self.view.retry_translation.hide()
         try:
-            self.store.save(request_id, self.package, value, model)
+            self.store.save(request_id, self.package, value, model, self.snapshot)
+            self.completed_id = request_id
         except (sqlite3.Error, ValueError):
             self.view.result_status.setText("回答已完成；本地记录未保存。可复制译文或重试保存记忆。")
         self.history.append((self.last_question or self.package.task_type, value))
         self.history = self.history[-2:]
+        self.history_memories.append(self.snapshot.memories)
+        self.history_memories = self.history_memories[-2:]
         self.current_id = None
         if self.view.followup.text().strip() == self.last_question.strip():
             self.view.followup.clear()
@@ -298,11 +326,18 @@ class ReadingWorkflow(QObject):
         self.input_key = None
         self.answer = ""
         self.history = []
+        self.history_memories = []
         self.package = None
+        self.snapshot = None
+        self.sent = False
+        self.completed_id = None
         self.clear_display()
 
     def clear_display(self):
         self.generation_state = "idle"
+        self.last_question = ""
+        self.view.used_memory.setText("尚未发送请求")
+        self.view.used_memory.setEnabled(False)
         self.view.result.clear()
         self.view.result_status.setText("框选教材，译文将显示在这里")
         self.view.stop_translation.setEnabled(False)
@@ -315,6 +350,12 @@ class ReadingWorkflow(QObject):
         project, source, session, shot, _ = self.input_key
         saved = self.store.latest(shot, project, source, session)
         if saved:
+            self.snapshot = ReadingContextSnapshot.from_json(saved["context_snapshot"])
+            self.sent = bool(self.snapshot)
+            self.completed_id = saved["id"]
+            self.last_question = saved["question"]
+            self.last_task = saved["task_type"]
+            self.show_memory_usage(historical=True)
             self.answer = saved["answer"]
             self._ui_text = self.answer
             self._render()
@@ -322,6 +363,21 @@ class ReadingWorkflow(QObject):
             self.view.copy_translation.setEnabled(True)
             self.view.result_status.setText("最近回答 · " + saved["model"])
             self.history = [(saved["question"] or saved["task_type"], self.answer)]
+            # Legacy results lack provenance: do not carry their answers into new requests.
+            self.history_memories = [self.snapshot.memories if self.snapshot else [{"legacy": True}]]
+
+    def show_memory_usage(self, historical=False):
+        if self.snapshot is None:
+            self.view.used_memory.setText("旧回答未记录所用记忆")
+            self.view.used_memory.setEnabled(False)
+            return
+        count = len(self.snapshot.memories)
+        self.view.used_memory.setText(
+            f"本次使用 {count} 条学习记忆 · 查看来源" if count else "本次未使用历史学习记忆")
+        self.view.used_memory.setEnabled(True)
+        self.view.used_memory.setToolTip(
+            "项目：" + (self.snapshot.project or {}).get("name", "未指定") +
+            " · 资料：" + (self.snapshot.source or {}).get("title", "未指定"))
 
     def copy(self):
         if self.generation_state == "completed" and self.answer:

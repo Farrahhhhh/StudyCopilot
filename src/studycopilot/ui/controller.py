@@ -36,6 +36,8 @@ class SidebarController(QObject):
         self.capture_busy = False
         self.capture_shortcut: str | None = "Alt+Q"
         self.suggested_title = ""
+        self.manual_memory_ids = ()
+        self.memory_concept = ""
         self.rebuild_timer = QTimer(self)
         self.rebuild_timer.setSingleShot(True)
         self.rebuild_timer.setInterval(250)
@@ -48,6 +50,9 @@ class SidebarController(QObject):
         view.selection.textChanged.connect(self.invalidate)
         view.topic.textChanged.connect(self.invalidate)
         view.save_memory.clicked.connect(self.save_memory)
+        from .memory_workflow import MemoryWorkflow
+        self.memory_ui = MemoryWorkflow(self)
+        view.use_memory.toggled.connect(self.invalidate)
         view.copy_button.clicked.connect(self.copy)
         view.closing.connect(self.close)
         self.reading = None
@@ -72,6 +77,7 @@ class SidebarController(QObject):
         self.project_changed()
 
     def project_changed(self) -> None:
+        self.memory_ui.clear_selection()
         self.visual.reset()
         self.view.selection.clear()
         self.view.topic.clear()
@@ -92,6 +98,7 @@ class SidebarController(QObject):
         self.view.sources.blockSignals(False)
 
     def source_changed(self) -> None:
+        self.memory_ui.clear_selection()
         self.view.topic.clear()
         self.rebuild()
 
@@ -179,7 +186,7 @@ class SidebarController(QObject):
         self.view.prepare_button.setEnabled(False)
         self.view.preview.clear()
         self.view.knowledge.setPlainText("暂无匹配概念。")
-        self.view.memories.setPlainText("暂无相关记忆。可点击“记住这个”记录学习情况。")
+        self.view.memories.setPlainText("待发送候选：暂无相关记忆。实际使用情况请查看回答上方。")
         try:
             project_id, source_id = self.view.projects.currentData(), self.view.sources.currentData()
             topic = self.projects.topic(project_id, source_id, self.view.topic.text())
@@ -201,7 +208,9 @@ class SidebarController(QObject):
             context = StudyContext(selected_text=text, project_id=project_id, source_id=source_id,
                 topic_id=topic["id"] if topic else None, session_id=session["id"],
                 process_name=self.window.process_name, current_app=self.window.process_name,
-                window_title=self.window.window_title, **visual_inputs)
+                window_title=self.window.window_title, use_project_memory=self.view.use_memory.isChecked(),
+                strict_project_memory=True, memory_concept=self.memory_concept,
+                manual_memory_ids=self.manual_memory_ids, **visual_inputs)
             self.visual.last_context = context
             task_type = "explain" if self.view.followup.text().strip() else self.visual.task_type
             self.package = self.context.build(context, task_type)
@@ -212,7 +221,7 @@ class SidebarController(QObject):
                     f"{c['chinese_name']}\n{c['canonical_name']}" for c in concepts))
             memories = self.package.relevant_memories
             if memories:
-                self.view.memories.setPlainText("\n\n".join(f"[{m['scope']}] {m['content']}" for m in memories))
+                self.view.memories.setPlainText("待发送候选（非已使用记录）\n\n" + "\n\n".join(f"[{m['scope']}] {m['content']}" for m in memories))
             self.view.package_info.setText(f"选文 {len(text)} 字符 · {len(concepts)} 个概念 · {len(memories)} 条记忆")
             self.view.copy_button.setEnabled(not self.capture_busy)
             self.visual.render()
@@ -234,25 +243,7 @@ class SidebarController(QObject):
                         self.view.projects.currentData(), self.view.sources.currentData())
 
     def save_memory(self) -> None:
-        concepts = self.package.related_concepts if self.package else []
-        dialog = MemoryDialog(concepts, self.view, screenshot=self.visual.current is not None)
-        selected = self.view.result.textCursor().selectedText().replace("\u2029", "\n")
-        if selected:
-            dialog.content.setPlainText(selected[:2000])
-        if dialog.exec() == QDialog.DialogCode.Accepted:
-            scope = dialog.scope.currentData()
-            try:
-                self.memory.save(dialog.content.toPlainText(), scope,
-                    self.view.projects.currentData() if scope == "project" else None,
-                    self.view.sources.currentData() if scope == "project" else None,
-                    dialog.concept.currentData(),
-                    screenshot_id=self.visual.current.id if self.visual.current and dialog.attach_screenshot.isChecked() else None)
-                if self.visual.current:
-                    self.visual.current = self.visual.store.get(self.visual.current.id)
-                self.rebuild()
-                self.message("Memory 已保存在本地。相关时会加入上下文。")
-            except (ValueError, sqlite3.Error) as error:
-                self.show_error(error)
+        self.memory_ui.edit(dialog_class=MemoryDialog)
 
     def show_error(self, error: Exception) -> None:
         message = str(error) if isinstance(error, ValueError) else "名称可能已存在，或数据库暂时不可写。请换一个名称或稍后重试。"

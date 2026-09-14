@@ -15,6 +15,7 @@ class ReadingRequest:
 
 class ReadingProvider(QObject):
     """Event-based provider contract. No network work occurs at construction."""
+    request_submitted = Signal(str)  # Model service acknowledged the submitted turn.
     request_progress = Signal(str, str)
     connection_changed = Signal(str, str)
     models_changed = Signal(list)

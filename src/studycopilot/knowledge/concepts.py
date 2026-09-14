@@ -24,6 +24,16 @@ class ConceptStore:
                     (new_id(), identifier, required_name(alias).casefold(), None))
         return self.get(identifier)
 
+    def list_all(self) -> list[dict]:
+        return self.db.all("SELECT * FROM concepts ORDER BY canonical_name")
+
+    def find_name(self, name: str) -> dict | None:
+        return self.db.one("SELECT * FROM concepts WHERE canonical_name=? COLLATE NOCASE", (name,))
+
+    def aliases(self, concept_id: str) -> list[str]:
+        return [row["alias"] for row in self.db.all(
+            "SELECT alias FROM concept_aliases WHERE concept_id=? ORDER BY alias", (concept_id,))]
+
     def get(self, concept_id: str) -> dict:
         item = self.db.one("SELECT * FROM concepts WHERE id=?", (concept_id,))
         if not item:

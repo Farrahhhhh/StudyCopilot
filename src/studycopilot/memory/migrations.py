@@ -6,7 +6,9 @@ from .schema_v2 import SCHEMA_V2
 
 from .schema_v3 import SCHEMA_V3
 
-MIGRATIONS = {1: SCHEMA_V1, 2: SCHEMA_V2, 3: SCHEMA_V3}
+from .schema_v4 import SCHEMA_V4
+
+MIGRATIONS = {1: SCHEMA_V1, 2: SCHEMA_V2, 3: SCHEMA_V3, 4: SCHEMA_V4}
 SCHEMA_VERSION = max(MIGRATIONS)
 
 

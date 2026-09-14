@@ -31,6 +31,7 @@ class FakeProvider(ReadingProvider):
     def submit(self, request):
         self.current=request
         self.requests.append(request)
+        self.request_submitted.emit(request.id)
     def cancel(self):
         self.cancelled+=1
         self.current=None

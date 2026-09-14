@@ -78,10 +78,20 @@ class ContextManager:
         ):
             raise ValueError("截图与当前项目、资料或 Session 不一致。")
         # No OCR: visual retrieval uses only explicit topic/question/optional text.
-        query = text + " " + context.question + " " + (topic["name"] if topic else "")
+        query = text + " " + context.question + " " + context.memory_concept + " " + (topic["name"] if topic else "")
         concepts = ConceptStore(self.db).match(query)
-        memories = self.retriever.search(query, context.project_id,
-                                         [c["id"] for c in concepts], 5, context.source_id)
+        if not context.use_project_memory:
+            memories = []
+        elif context.strict_project_memory:
+            from .reading_memory import select_project_memories
+            memories = select_project_memories(self.db, self.retriever, context.project_id,
+                                               query, context.manual_memory_ids)
+        else:
+            memories = self.retriever.search(query, context.project_id,
+                                             [c["id"] for c in concepts], 5, context.source_id)
+        preferences = MemoryStore(self.db).preferences()
+        if context.strict_project_memory or not context.use_project_memory:
+            preferences.pop("user_memories", None)
         return ContextPackage(
             task_type=task_type, selected_text=text,
             project=compact(project, ("id", "name")), source=compact(source, ("id", "title", "source_type")),
@@ -90,8 +100,9 @@ class ContextManager:
             # V0.1 keeps recent context empty by default. Caller-supplied snippets are bounded.
             recent_context=[text[:1000] for text in context.recent_context[-2:]],
             related_concepts=[compact(c, ("id", "canonical_name", "english_name", "chinese_name")) for c in concepts],
-            relevant_memories=[compact(m, ("id", "scope", "content", "concept_id")) for m in memories],
-            user_preferences=MemoryStore(self.db).preferences(),
+            relevant_memories=memories if context.strict_project_memory else [
+                compact(m, ("id", "scope", "content", "concept_id")) for m in memories],
+            user_preferences=preferences,
             current_screenshot=shot.to_dict() if shot else None,
             recent_screenshots=[s.to_dict() for s in context.recent_screenshots[-2:]
                 if s.id != (shot.id if shot else None) and

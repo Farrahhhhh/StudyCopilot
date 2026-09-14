@@ -94,7 +94,7 @@ def main(argv: list[str] | None = None) -> int:
     sys.excepthook = handle_exception
     view.place_right()
     view.show()
-    logger.info("application started version=0.3.1")
+    logger.info("application started version=0.3.2")
     if args.smoke_test:
         QTimer.singleShot(500, view.close)
     try:
